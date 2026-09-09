@@ -1,0 +1,29 @@
+# Compilação e binários Java
+bin/
+*.class
+*.jar
+!lib/*.jar
+
+# Banco de dados local SQLite
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+
+# Arquivos do sistema operacional
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs e arquivos temporários
+*.log
+*.tmp
+*.temp
+*.bak
+*.swp

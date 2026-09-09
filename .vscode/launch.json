@@ -1,0 +1,51 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "java",
+            "name": "testes",
+            "request": "launch",
+            "mainClass": "projetopdv.scratch.testes",
+            "projectName": "projetopdv_cfeeefb5"
+        },
+        {
+            "type": "java",
+            "name": "FrenteCaixa",
+            "request": "launch",
+            "mainClass": "projetopdv.ui.FrenteCaixa",
+            "projectName": "projetopdv_cfeeefb5"
+        },
+        {
+            "type": "java",
+            "name": "Painel",
+            "request": "launch",
+            "mainClass": "projetopdv.ui.Painel",
+            "projectName": "projetopdv_cfeeefb5",
+            "console": "integratedTerminal"
+        },
+        {
+            "type": "java",
+            "name": "Executar Painel (PDV)",
+            "request": "launch",
+            "mainClass": "projetopdv.ui.Painel",
+            "projectName": "projetopdv",
+            "console": "integratedTerminal"
+        },
+        {
+            "type": "java",
+            "name": "Inicializar Banco de Dados",
+            "request": "launch",
+            "mainClass": "projetopdv.dados.BancoDeDados",
+            "projectName": "projetopdv",
+            "console": "integratedTerminal"
+        },
+        {
+            "type": "java",
+            "name": "Frente de Caixa (PDV)",
+            "request": "launch",
+            "mainClass": "projetopdv.ui.FrenteCaixa",
+            "projectName": "projetopdv",
+            "console": "integratedTerminal"
+        }
+    ]
+}
