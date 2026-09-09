@@ -33,6 +33,12 @@ public class ComandoSaldoCaixa extends ComandoPainel {
             System.out.printf("DATA/HORA DE ABERTURA:     %s%n", resumo.getDataAbertura().format(SessaoCaixa.FORMATO_DATA_HORA));
             System.out.printf("FUNDO DE TROCO INICIAL:    R$ %15.2f%n", resumo.getFundoTrocoInicial());
         }
+        if (aberto) {
+            projetopdv.caixa.MovimentacaoCaixa abertura = sessao.getCaixaDAO().obterUltimaAbertura();
+            if (abertura != null && abertura.getJustificativa() != null && abertura.getJustificativa().contains("DIVERGÊNCIA")) {
+                System.out.println("STATUS DA ABERTURA:        [!] TURNO INICIADO COM DIVERGÊNCIA REGISTRADA");
+            }
+        }
         System.out.println("----------------------------------------------------");
         System.out.printf("SALDO ATUAL EM ESPÉCIE:    R$ %15.2f%n", saldoGaveta);
         System.out.println("----------------------------------------------------");

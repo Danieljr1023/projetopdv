@@ -253,44 +253,77 @@ public class CaixaDAO {
     }
 
     public BigDecimal calcularSaldoDinheiroEmCaixa() {
-        BigDecimal totalEntradas = BigDecimal.ZERO;
-        BigDecimal totalSaidas = BigDecimal.ZERO;
+        if (!isCaixaAberto()) {
+            MovimentacaoCaixa fechamento = obterUltimoFechamento();
+            return fechamento != null ? fechamento.getValor() : BigDecimal.ZERO;
+        }
 
-        String sqlVendasDinheiro = """
-            SELECT SUM(valor_total_centavos)
-            FROM venda
-            WHERE UPPER(forma_pagamento) = 'DINHEIRO' AND status_venda != 'ESTORNADA';
-            """;
+        MovimentacaoCaixa abertura = obterUltimaAbertura();
+        if (abertura == null) {
+            return BigDecimal.ZERO;
+        }
 
-        String sqlMovimentacoes = """
-            SELECT tipo_movimentacao, SUM(valor_centavos)
-            FROM movimentacao_caixa
-            GROUP BY tipo_movimentacao;
-            """;
+        BigDecimal saldo = abertura.getValor();
+        LocalDateTime dataAbertura = abertura.getDataHora();
+        int idAbertura = abertura.getIdMovimentacao();
+        Integer idVendaBase = abertura.getIdVenda();
 
         try (Connection conn = BancoDeDados.conectar()) {
+            // Vendas em dinheiro realizadas a partir da abertura deste turno
+            String sqlVendasDinheiro = """
+                SELECT id_venda, data_venda, valor_total_centavos
+                FROM venda
+                WHERE UPPER(forma_pagamento) = 'DINHEIRO' AND status_venda != 'ESTORNADA';
+                """;
+
             try (Statement stmt = conn.createStatement();
                  ResultSet rsVendas = stmt.executeQuery(sqlVendasDinheiro)) {
-                if (rsVendas.next()) {
-                    long centavosVendas = rsVendas.getLong(1);
-                    totalEntradas = totalEntradas.add(BigDecimal.valueOf(centavosVendas).movePointLeft(2));
+                while (rsVendas.next()) {
+                    int idV = rsVendas.getInt("id_venda");
+                    boolean pertenceAoTurno;
+                    if (idVendaBase != null) {
+                        pertenceAoTurno = (idV > idVendaBase);
+                    } else {
+                        String dataStr = rsVendas.getString("data_venda");
+                        try {
+                            LocalDateTime dataVenda = LocalDateTime.parse(dataStr, FORMATO_DATA_HORA);
+                            pertenceAoTurno = dataVenda.isAfter(dataAbertura) || (idAbertura == 1 && !dataVenda.isBefore(dataAbertura));
+                        } catch (Exception ignored) {
+                            pertenceAoTurno = false;
+                        }
+                    }
+
+                    if (pertenceAoTurno) {
+                        long centavosVendas = rsVendas.getLong("valor_total_centavos");
+                        saldo = saldo.add(BigDecimal.valueOf(centavosVendas).movePointLeft(2));
+                    }
                 }
             }
 
-            try (Statement stmt = conn.createStatement();
-                 ResultSet rsMov = stmt.executeQuery(sqlMovimentacoes)) {
-                while (rsMov.next()) {
-                    String tipoStr = rsMov.getString(1);
-                    long centavos = rsMov.getLong(2);
-                    BigDecimal valor = BigDecimal.valueOf(centavos).movePointLeft(2);
-                    TipoMovimentacaoCaixa tipo = TipoMovimentacaoCaixa.fromString(tipoStr);
+            // Movimentações ocorridas após a abertura deste turno
+            String sqlMovimentacoes = """
+                SELECT tipo_movimentacao, SUM(valor_centavos)
+                FROM movimentacao_caixa
+                WHERE id_movimentacao > ?
+                GROUP BY tipo_movimentacao;
+                """;
 
-                    if (tipo == TipoMovimentacaoCaixa.SUPRIMENTO_TROCO || tipo == TipoMovimentacaoCaixa.ABERTURA_CAIXA) {
-                        totalEntradas = totalEntradas.add(valor);
-                    } else if (tipo == TipoMovimentacaoCaixa.SANGRIA_OPERACIONAL
-                            || tipo == TipoMovimentacaoCaixa.SANGRIA_RESGATE_VALE
-                            || tipo == TipoMovimentacaoCaixa.ESTORNO_VENDA_DINHEIRO) {
-                        totalSaidas = totalSaidas.add(valor);
+            try (PreparedStatement psMov = conn.prepareStatement(sqlMovimentacoes)) {
+                psMov.setInt(1, idAbertura);
+                try (ResultSet rsMov = psMov.executeQuery()) {
+                    while (rsMov.next()) {
+                        String tipoStr = rsMov.getString(1);
+                        long centavos = rsMov.getLong(2);
+                        BigDecimal valor = BigDecimal.valueOf(centavos).movePointLeft(2);
+                        TipoMovimentacaoCaixa tipo = TipoMovimentacaoCaixa.fromString(tipoStr);
+
+                        if (tipo == TipoMovimentacaoCaixa.SUPRIMENTO_TROCO) {
+                            saldo = saldo.add(valor);
+                        } else if (tipo == TipoMovimentacaoCaixa.SANGRIA_OPERACIONAL
+                                || tipo == TipoMovimentacaoCaixa.SANGRIA_RESGATE_VALE
+                                || tipo == TipoMovimentacaoCaixa.ESTORNO_VENDA_DINHEIRO) {
+                            saldo = saldo.subtract(valor);
+                        }
                     }
                 }
             }
@@ -298,7 +331,7 @@ public class CaixaDAO {
             System.out.println("Erro ao calcular saldo em caixa: " + e.getMessage());
         }
 
-        return totalEntradas.subtract(totalSaidas);
+        return saldo;
     }
 
     public boolean isCaixaAberto() {
@@ -339,6 +372,41 @@ public class CaixaDAO {
         return null;
     }
 
+    public MovimentacaoCaixa obterUltimoFechamento() {
+        String sql = """
+            SELECT * FROM movimentacao_caixa
+            WHERE tipo_movimentacao = 'FECHAMENTO_CAIXA'
+            ORDER BY id_movimentacao DESC
+            LIMIT 1;
+            """;
+        try (Connection conn = BancoDeDados.conectar();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            if (rs.next()) {
+                return montarMovimentacao(rs);
+            }
+        } catch (SQLException e) {
+            System.out.println("Erro ao obter último fechamento de caixa: " + e.getMessage());
+        }
+        return null;
+    }
+
+    public Integer obterMaxIdVenda() {
+        String sql = "SELECT MAX(id_venda) FROM venda;";
+        try (Connection conn = BancoDeDados.conectar();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            if (rs.next()) {
+                int maxId = rs.getInt(1);
+                if (!rs.wasNull() && maxId > 0) {
+                    return maxId;
+                }
+            }
+        } catch (SQLException ignored) {
+        }
+        return null;
+    }
+
     public MovimentacaoCaixa registrarAberturaCaixa(BigDecimal fundoTroco, String justificativa, Integer idOperador) {
         if (isCaixaAberto()) {
             throw new IllegalStateException("O caixa já se encontra aberto.");
@@ -349,7 +417,8 @@ public class CaixaDAO {
         String just = (justificativa != null && !justificativa.isBlank())
                 ? justificativa.trim()
                 : "Abertura de caixa com fundo de troco inicial";
-        return registrarMovimentacao(TipoMovimentacaoCaixa.ABERTURA_CAIXA, fundoTroco, null, null, just, idOperador);
+        Integer ultimaVendaId = obterMaxIdVenda();
+        return registrarMovimentacao(TipoMovimentacaoCaixa.ABERTURA_CAIXA, fundoTroco, null, ultimaVendaId, just, idOperador);
     }
 
     public MovimentacaoCaixa registrarFechamentoCaixa(BigDecimal valorContadoFisico, String justificativa, Integer idOperador) {
@@ -399,6 +468,8 @@ public class CaixaDAO {
         MovimentacaoCaixa abertura = obterUltimaAbertura();
         LocalDateTime dataAbertura = abertura != null ? abertura.getDataHora() : null;
         BigDecimal fundoTroco = abertura != null ? abertura.getValor() : BigDecimal.ZERO;
+        int idAbertura = abertura != null ? abertura.getIdMovimentacao() : 0;
+        Integer idVendaBase = abertura != null ? abertura.getIdVenda() : null;
 
         BigDecimal totalDinheiro = BigDecimal.ZERO;
         BigDecimal totalCartaoCredito = BigDecimal.ZERO;
@@ -413,15 +484,32 @@ public class CaixaDAO {
         BigDecimal totalSangriasOperacionais = BigDecimal.ZERO;
         BigDecimal totalEstornosDinheiro = BigDecimal.ZERO;
 
-        String sqlVendas = "SELECT forma_pagamento, valor_total_centavos FROM venda WHERE status_venda != 'ESTORNADA'";
-        if (dataAbertura != null) {
-            sqlVendas += " AND data_venda >= '" + dataAbertura.format(FORMATO_DATA_HORA) + "'";
-        }
+        String sqlVendas = "SELECT id_venda, data_venda, forma_pagamento, valor_total_centavos FROM venda WHERE status_venda != 'ESTORNADA'";
 
         try (Connection conn = BancoDeDados.conectar()) {
             try (Statement stmt = conn.createStatement();
                  ResultSet rs = stmt.executeQuery(sqlVendas)) {
                 while (rs.next()) {
+                    int idV = rs.getInt("id_venda");
+                    boolean pertenceAoTurno;
+                    if (idVendaBase != null) {
+                        pertenceAoTurno = (idV > idVendaBase);
+                    } else if (dataAbertura != null) {
+                        String dataStr = rs.getString("data_venda");
+                        try {
+                            LocalDateTime dataVenda = LocalDateTime.parse(dataStr, FORMATO_DATA_HORA);
+                            pertenceAoTurno = dataVenda.isAfter(dataAbertura) || (idAbertura == 1 && !dataVenda.isBefore(dataAbertura));
+                        } catch (Exception ignored) {
+                            pertenceAoTurno = false;
+                        }
+                    } else {
+                        pertenceAoTurno = true;
+                    }
+
+                    if (!pertenceAoTurno) {
+                        continue;
+                    }
+
                     String forma = rs.getString("forma_pagamento");
                     long centavos = rs.getLong("valor_total_centavos");
                     BigDecimal valor = BigDecimal.valueOf(centavos).movePointLeft(2);
@@ -444,39 +532,53 @@ public class CaixaDAO {
             }
 
             String sqlItens = """
-                SELECT COALESCE(SUM(iv.quantidade), 0)
+                SELECT v.id_venda, v.data_venda, iv.quantidade
                 FROM item_venda iv
                 INNER JOIN venda v ON iv.venda_id = v.id_venda
-                WHERE v.status_venda != 'ESTORNADA'
+                WHERE v.status_venda != 'ESTORNADA';
                 """;
-            if (dataAbertura != null) {
-                sqlItens += " AND v.data_venda >= '" + dataAbertura.format(FORMATO_DATA_HORA) + "'";
-            }
             try (Statement stmt = conn.createStatement();
                  ResultSet rs = stmt.executeQuery(sqlItens)) {
-                if (rs.next()) {
-                    totalItens = rs.getInt(1);
+                while (rs.next()) {
+                    int idV = rs.getInt("id_venda");
+                    boolean pertenceAoTurno;
+                    if (idVendaBase != null) {
+                        pertenceAoTurno = (idV > idVendaBase);
+                    } else if (dataAbertura != null) {
+                        String dataStr = rs.getString("data_venda");
+                        try {
+                            LocalDateTime dataVenda = LocalDateTime.parse(dataStr, FORMATO_DATA_HORA);
+                            pertenceAoTurno = dataVenda.isAfter(dataAbertura) || (idAbertura == 1 && !dataVenda.isBefore(dataAbertura));
+                        } catch (Exception ignored) {
+                            pertenceAoTurno = false;
+                        }
+                    } else {
+                        pertenceAoTurno = true;
+                    }
+
+                    if (pertenceAoTurno) {
+                        totalItens += rs.getInt("quantidade");
+                    }
                 }
             }
 
-            String sqlMov = "SELECT tipo_movimentacao, valor_centavos FROM movimentacao_caixa WHERE 1=1";
-            if (dataAbertura != null) {
-                sqlMov += " AND data_hora >= '" + dataAbertura.format(FORMATO_DATA_HORA) + "'";
-            }
-            try (Statement stmt = conn.createStatement();
-                 ResultSet rs = stmt.executeQuery(sqlMov)) {
-                while (rs.next()) {
-                    String tipoStr = rs.getString("tipo_movimentacao");
-                    long centavos = rs.getLong("valor_centavos");
-                    BigDecimal val = BigDecimal.valueOf(centavos).movePointLeft(2);
-                    TipoMovimentacaoCaixa tipo = TipoMovimentacaoCaixa.fromString(tipoStr);
+            String sqlMov = "SELECT tipo_movimentacao, valor_centavos FROM movimentacao_caixa WHERE id_movimentacao >= ?";
+            try (PreparedStatement psMov = conn.prepareStatement(sqlMov)) {
+                psMov.setInt(1, idAbertura);
+                try (ResultSet rs = psMov.executeQuery()) {
+                    while (rs.next()) {
+                        String tipoStr = rs.getString("tipo_movimentacao");
+                        long centavos = rs.getLong("valor_centavos");
+                        BigDecimal val = BigDecimal.valueOf(centavos).movePointLeft(2);
+                        TipoMovimentacaoCaixa tipo = TipoMovimentacaoCaixa.fromString(tipoStr);
 
-                    switch (tipo) {
-                        case SUPRIMENTO_TROCO -> totalSuprimentos = totalSuprimentos.add(val);
-                        case SANGRIA_RESGATE_VALE -> totalSangriasResgateVale = totalSangriasResgateVale.add(val);
-                        case SANGRIA_OPERACIONAL -> totalSangriasOperacionais = totalSangriasOperacionais.add(val);
-                        case ESTORNO_VENDA_DINHEIRO -> totalEstornosDinheiro = totalEstornosDinheiro.add(val);
-                        default -> {}
+                        switch (tipo) {
+                            case SUPRIMENTO_TROCO -> totalSuprimentos = totalSuprimentos.add(val);
+                            case SANGRIA_RESGATE_VALE -> totalSangriasResgateVale = totalSangriasResgateVale.add(val);
+                            case SANGRIA_OPERACIONAL -> totalSangriasOperacionais = totalSangriasOperacionais.add(val);
+                            case ESTORNO_VENDA_DINHEIRO -> totalEstornosDinheiro = totalEstornosDinheiro.add(val);
+                            default -> {}
+                        }
                     }
                 }
             }
