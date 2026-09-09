@@ -9,6 +9,8 @@ import projetopdv.usuario.Permissao;
 
 public class ComandoFecharCaixa extends ComandoPainel {
 
+    public static final int LIMITE_CARACTERES_JUSTIFICATIVA = 200;
+
     private final SessaoCaixa sessao;
 
     public ComandoFecharCaixa(SessaoCaixa sessao) {
@@ -113,22 +115,68 @@ public class ComandoFecharCaixa extends ComandoPainel {
             return true;
         }
 
-        if (motivo == null || motivo.isBlank()) {
-            System.out.print("Observações do fechamento de turno (opcional): ");
-            motivo = sessao.getEntrada().nextLine().trim();
-            if (motivo.isBlank()) {
-                motivo = "Fechamento de turno por " + sessao.getUsuarioLogado().getNomeUsuario();
-            }
-        }
-
         BigDecimal diferenca = valorFisico.subtract(saldoEsperado);
         String justFinal;
         if (diferenca.compareTo(BigDecimal.ZERO) != 0) {
             String tipoDif = diferenca.compareTo(BigDecimal.ZERO) > 0 ? "SOBRA DE CAIXA" : "QUEBRA DE CAIXA";
-            justFinal = String.format("Fechamento [%s: Esperado R$ %.2f, Contado R$ %.2f, Dif. %+,.2f] - %s",
-                    tipoDif, saldoEsperado, valorFisico, diferenca, motivo);
+
+            if (motivo == null || motivo.isBlank()) {
+                System.out.print("Deseja inserir observação? (s/n): ");
+                String resp = sessao.getEntrada().nextLine().trim().toLowerCase();
+                if (resp.startsWith("s")) {
+                    while (true) {
+                        System.out.printf("Informe a observação (máx. %d caracteres): ", LIMITE_CARACTERES_JUSTIFICATIVA);
+                        String obs = sessao.getEntrada().nextLine().trim();
+                        if (obs.length() > LIMITE_CARACTERES_JUSTIFICATIVA) {
+                            System.out.printf("[AVISO] Observação excede o limite de %d caracteres (atual: %d). Digite novamente.%n",
+                                    LIMITE_CARACTERES_JUSTIFICATIVA, obs.length());
+                            continue;
+                        }
+                        if (!obs.isBlank()) {
+                            motivo = obs;
+                        }
+                        break;
+                    }
+                }
+            } else if (motivo.length() > LIMITE_CARACTERES_JUSTIFICATIVA) {
+                motivo = motivo.substring(0, LIMITE_CARACTERES_JUSTIFICATIVA);
+            }
+
+            if (motivo != null && !motivo.isBlank()) {
+                justFinal = String.format("Fechamento [%s: Esperado R$ %.2f, Contado R$ %.2f, Dif. %+,.2f] - Justificativa: \"%s\" - Operador: %s",
+                        tipoDif, saldoEsperado, valorFisico, diferenca, motivo, sessao.getUsuarioLogado().getNomeUsuario());
+            } else {
+                justFinal = String.format("Fechamento [%s: Esperado R$ %.2f, Contado R$ %.2f, Dif. %+,.2f] pelo operador %s",
+                        tipoDif, saldoEsperado, valorFisico, diferenca, sessao.getUsuarioLogado().getNomeUsuario());
+            }
         } else {
-            justFinal = String.format("Fechamento [CAIXA EXATO: R$ %.2f] - %s", valorFisico, motivo);
+            if (motivo == null || motivo.isBlank()) {
+                System.out.print("Deseja inserir observação? (s/n): ");
+                String resp = sessao.getEntrada().nextLine().trim().toLowerCase();
+                if (resp.startsWith("s")) {
+                    while (true) {
+                        System.out.printf("Informe a observação (máx. %d caracteres): ", LIMITE_CARACTERES_JUSTIFICATIVA);
+                        String obs = sessao.getEntrada().nextLine().trim();
+                        if (obs.length() > LIMITE_CARACTERES_JUSTIFICATIVA) {
+                            System.out.printf("[AVISO] Observação excede o limite de %d caracteres (atual: %d). Digite novamente.%n",
+                                    LIMITE_CARACTERES_JUSTIFICATIVA, obs.length());
+                            continue;
+                        }
+                        if (!obs.isBlank()) {
+                            motivo = obs;
+                        }
+                        break;
+                    }
+                }
+            } else if (motivo.length() > LIMITE_CARACTERES_JUSTIFICATIVA) {
+                motivo = motivo.substring(0, LIMITE_CARACTERES_JUSTIFICATIVA);
+            }
+
+            if (motivo != null && !motivo.isBlank()) {
+                justFinal = String.format("Fechamento [CAIXA EXATO: R$ %.2f] - %s", valorFisico, motivo);
+            } else {
+                justFinal = String.format("Fechamento [CAIXA EXATO: R$ %.2f] pelo operador %s", valorFisico, sessao.getUsuarioLogado().getNomeUsuario());
+            }
         }
 
         int idOperador = sessao.getUsuarioLogado().getIdUsuario();
@@ -140,6 +188,9 @@ public class ComandoFecharCaixa extends ComandoPainel {
             if (diferenca.compareTo(BigDecimal.ZERO) != 0) {
                 String tipoDif = diferenca.compareTo(BigDecimal.ZERO) > 0 ? "SOBRA DE CAIXA" : "QUEBRA DE CAIXA";
                 System.out.printf("\n[!] FECHAMENTO COM DIVERGÊNCIA REGISTRADA: %+,.2f (%s)%n", diferenca, tipoDif);
+                if (motivo != null && !motivo.isBlank()) {
+                    System.out.printf("JUSTIFICATIVA REGISTRADA: %s%n", motivo);
+                }
             }
             System.out.println("\n[✓] CAIXA FÍSICO FECHADO COM SUCESSO!");
             System.out.println("O terminal está agora bloqueado para novas vendas até que uma nova abertura seja efetuada.");

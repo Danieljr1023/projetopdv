@@ -8,6 +8,8 @@ import projetopdv.usuario.Permissao;
 
 public class ComandoAbrirCaixa extends ComandoPainel {
 
+    public static final int LIMITE_CARACTERES_JUSTIFICATIVA = 200;
+
     private final SessaoCaixa sessao;
 
     public ComandoAbrirCaixa(SessaoCaixa sessao) {
@@ -107,13 +109,53 @@ public class ComandoAbrirCaixa extends ComandoPainel {
         }
 
         String justFinal;
+        String justificativaDivergencia = null;
         if (saldoAnterior != null && fundoTroco.compareTo(saldoAnterior) != 0) {
             BigDecimal dif = fundoTroco.subtract(saldoAnterior);
             String tipoDif = dif.compareTo(BigDecimal.ZERO) > 0 ? "SOBRA NA ABERTURA" : "FALTA NA ABERTURA";
-            justFinal = String.format(
-                    "Abertura de turno [DIVERGÊNCIA CONFIRMADA: Último fechamento R$ %.2f, Contado R$ %.2f, Dif. %+,.2f (%s)] pelo operador %s",
-                    saldoAnterior, fundoTroco, dif, tipoDif, sessao.getUsuarioLogado().getNomeUsuario()
-            );
+
+            if (argumentos.length > 1) {
+                StringBuilder sb = new StringBuilder();
+                for (int i = 1; i < argumentos.length; i++) {
+                    if (i > 1) sb.append(" ");
+                    sb.append(argumentos[i]);
+                }
+                justificativaDivergencia = sb.toString().trim();
+            }
+
+            if (justificativaDivergencia == null || justificativaDivergencia.isBlank()) {
+                System.out.print("Deseja inserir observação? (s/n): ");
+                String resp = sessao.getEntrada().nextLine().trim().toLowerCase();
+                if (resp.startsWith("s")) {
+                    while (true) {
+                        System.out.printf("Informe a observação (máx. %d caracteres): ", LIMITE_CARACTERES_JUSTIFICATIVA);
+                        String obs = sessao.getEntrada().nextLine().trim();
+                        if (obs.length() > LIMITE_CARACTERES_JUSTIFICATIVA) {
+                            System.out.printf("[AVISO] Observação excede o limite de %d caracteres (atual: %d). Digite novamente.%n",
+                                    LIMITE_CARACTERES_JUSTIFICATIVA, obs.length());
+                            continue;
+                        }
+                        if (!obs.isBlank()) {
+                            justificativaDivergencia = obs;
+                        }
+                        break;
+                    }
+                }
+            } else if (justificativaDivergencia.length() > LIMITE_CARACTERES_JUSTIFICATIVA) {
+                justificativaDivergencia = justificativaDivergencia.substring(0, LIMITE_CARACTERES_JUSTIFICATIVA);
+            }
+
+            if (justificativaDivergencia != null && !justificativaDivergencia.isBlank()) {
+                justFinal = String.format(
+                        "Abertura de turno [DIVERGÊNCIA CONFIRMADA: Último fechamento R$ %.2f, Contado R$ %.2f, Dif. %+,.2f (%s)] - Justificativa: \"%s\" - Operador: %s",
+                        saldoAnterior, fundoTroco, dif, tipoDif, justificativaDivergencia, sessao.getUsuarioLogado().getNomeUsuario()
+                );
+            } else {
+                justFinal = String.format(
+                        "Abertura de turno [DIVERGÊNCIA CONFIRMADA: Último fechamento R$ %.2f, Contado R$ %.2f, Dif. %+,.2f (%s)] pelo operador %s",
+                        saldoAnterior, fundoTroco, dif, tipoDif, sessao.getUsuarioLogado().getNomeUsuario()
+                );
+            }
         } else if (saldoAnterior != null) {
             justFinal = String.format(
                     "Abertura de turno pelo operador %s (Fundo de troco conferido com último fechamento: R$ %.2f)",
@@ -141,6 +183,9 @@ public class ComandoAbrirCaixa extends ComandoPainel {
                 BigDecimal dif = fundoTroco.subtract(saldoAnterior);
                 String tipoDif = dif.compareTo(BigDecimal.ZERO) > 0 ? "SOBRA NA ABERTURA" : "FALTA NA ABERTURA";
                 System.out.printf("STATUS CONFERÊNCIA:     [!] DIVERGÊNCIA REGISTRADA (%+,.2f - %s)%n", dif, tipoDif);
+                if (justificativaDivergencia != null && !justificativaDivergencia.isBlank()) {
+                    System.out.printf("JUSTIFICATIVA:          %s%n", justificativaDivergencia);
+                }
             } else if (saldoAnterior != null) {
                 System.out.println("STATUS CONFERÊNCIA:     [✓] CONFERIDO COM ÚLTIMO FECHAMENTO");
             }
