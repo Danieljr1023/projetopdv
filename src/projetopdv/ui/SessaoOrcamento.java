@@ -32,7 +32,7 @@ import projetopdv.usuario.UsuarioDAO;
 
 public final class SessaoOrcamento {
 
-    public static final DateTimeFormatter FORMATO_DATA = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss");
+    public static final DateTimeFormatter FORMATO_DATA_HORA = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss");
 
     private final Scanner entrada;
     private final OrcamentoDAO orcamentoDAO;
@@ -629,7 +629,7 @@ public final class SessaoOrcamento {
         System.out.println(centralizarTexto(String.format("ORÇAMENTO #%04d", orc.getIdOrcamento()), 100));
         System.out.println("====================================================================================================");
         System.out.println(String.format(" Nome: %-42s Status: %s", nome, orc.getStatusOrcamento()));
-        System.out.println(String.format(" Data: %-42s Cliente: %s", orc.getDataOrcamento().format(FORMATO_DATA), clienteStr));
+        System.out.println(String.format(" Data: %-42s Cliente: %s", orc.getDataOrcamento().format(FORMATO_DATA_HORA), clienteStr));
         System.out.println("----------------------------------------------------------------------------------------------------");
         System.out.println(String.format(" %-4s | %-37s | %-4s | %-13s | %-13s | %-13s",
                 "Item", "Produto", "Qtd", "Unit. Bruto", "Unit. Líquido", "Total Item"));

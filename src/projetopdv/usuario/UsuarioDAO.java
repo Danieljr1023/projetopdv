@@ -408,7 +408,7 @@ public class UsuarioDAO {
         }
     }
 
-    public boolean setAtivo(int idUsuario, boolean ativo) throws SQLException {
+    public boolean atualizarStatusAtivo(int idUsuario, boolean ativo) throws SQLException {
         String sql = "UPDATE usuario SET ativo = ? WHERE id_usuario = ?;";
         try (Connection conexao = BancoDeDados.conectar(); PreparedStatement ps = conexao.prepareStatement(sql)) {
             ps.setInt(1, ativo ? 1 : 0);
@@ -418,11 +418,11 @@ public class UsuarioDAO {
     }
 
     public boolean desativar(int idUsuario) throws SQLException {
-        return setAtivo(idUsuario, false);
+        return atualizarStatusAtivo(idUsuario, false);
     }
 
     public boolean ativar(int idUsuario) throws SQLException {
-        return setAtivo(idUsuario, true);
+        return atualizarStatusAtivo(idUsuario, true);
     }
 
     public boolean deletar(int idUsuario) throws SQLException {

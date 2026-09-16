@@ -1,6 +1,7 @@
 package projetopdv.ui.comandos;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -21,6 +22,6 @@ public class ComandosPainel {
     }
 
     public Collection<ComandoPainel> listar() {
-        return comandos.values();
+        return Collections.unmodifiableCollection(comandos.values());
     }
 }

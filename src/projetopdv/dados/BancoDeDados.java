@@ -12,7 +12,11 @@ import projetopdv.usuario.PerfilUsuario;
 import projetopdv.usuario.Permissao;
 import projetopdv.usuario.Usuario;
 
-public class BancoDeDados {
+public final class BancoDeDados {
+
+    private BancoDeDados() {
+        // Classe utilitária com métodos estáticos; não deve ser instanciada.
+    }
 
     // Testa conexão com SQLite e cria arquivo projetopdv.db
     private static final String URL = "jdbc:sqlite:projetopdv.db";

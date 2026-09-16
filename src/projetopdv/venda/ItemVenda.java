@@ -8,16 +8,16 @@ import projetopdv.produto.Produto;
 
 public final class ItemVenda {
 
-    private int idItemVenda;
-    private int numeroItem;
-    private Integer numeroItemOrcamento;
-    private Produto produto;
-    private int idProduto;
-    private String nomeProduto;
-    private String codigoBarras;
-    private int quantidade;
-    private BigDecimal precoUnitarioTabela;
-    private BigDecimal precoUnitario;
+    private final int idItemVenda;
+    private final int numeroItem;
+    private final Integer numeroItemOrcamento;
+    private final Produto produto;
+    private final int idProduto;
+    private final String nomeProduto;
+    private final String codigoBarras;
+    private final int quantidade;
+    private final BigDecimal precoUnitarioTabela;
+    private final BigDecimal precoUnitario;
     private int quantidadeDevolvida;
 
     public ItemVenda(int idItemVenda, int numeroItem, Integer numeroItemOrcamento, Produto produto, int idProduto,
@@ -100,19 +100,8 @@ public final class ItemVenda {
         return idItemVenda;
     }
 
-    public void setIdItemVenda(int idItemVenda) {
-        this.idItemVenda = idItemVenda;
-    }
-
     public int getNumeroItem() {
         return numeroItem;
-    }
-
-    public void setNumeroItem(int numeroItem) {
-        if (numeroItem <= 0) {
-            throw new IllegalArgumentException("O número do item deve ser maior que zero.");
-        }
-        this.numeroItem = numeroItem;
     }
 
     public Integer getNumeroItemOrcamento() {
@@ -121,19 +110,6 @@ public final class ItemVenda {
 
     public Produto getProduto() {
         return produto;
-    }
-
-    public void setProduto(Produto produto) {
-        this.produto = produto;
-        if (produto != null) {
-            this.idProduto = produto.getIdProduto();
-            if (this.nomeProduto == null || this.nomeProduto.isEmpty()) {
-                this.nomeProduto = produto.getNomeProduto();
-            }
-            if (this.codigoBarras == null || this.codigoBarras.isEmpty()) {
-                this.codigoBarras = produto.getCodBarras();
-            }
-        }
     }
 
     public int getIdProduto() {
@@ -152,26 +128,12 @@ public final class ItemVenda {
         return quantidade;
     }
 
-    public void setQuantidade(int quantidade) {
-        if (quantidade <= 0) {
-            throw new IllegalArgumentException("A quantidade deve ser maior que zero.");
-        }
-        this.quantidade = quantidade;
-    }
-
     public BigDecimal getPrecoUnitarioTabela() {
         return precoUnitarioTabela;
     }
 
     public BigDecimal getPrecoUnitario() {
         return precoUnitario;
-    }
-
-    public void setPrecoUnitario(BigDecimal precoUnitario) {
-        if (precoUnitario == null || precoUnitario.compareTo(BigDecimal.ZERO) < 0) {
-            throw new IllegalArgumentException("O preço unitário não pode ser nulo ou negativo.");
-        }
-        this.precoUnitario = precoUnitario.setScale(2, RoundingMode.HALF_UP);
     }
 
     public BigDecimal getValorSubtotalBruto() {

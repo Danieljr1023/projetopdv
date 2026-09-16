@@ -9,7 +9,7 @@ import projetopdv.usuario.Permissao;
 
 public class ComandoFecharCaixa extends ComandoPainel {
 
-    public static final int LIMITE_CARACTERES_JUSTIFICATIVA = 200;
+    private static final int LIMITE_CARACTERES_JUSTIFICATIVA = 200;
 
     private final SessaoCaixa sessao;
 
